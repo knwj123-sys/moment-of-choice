@@ -81,11 +81,12 @@ scene.camera = None
 # Shot positions: all offsets are relative to the imported ship length.
 # Each shot is independently editable and automatically switched via timeline markers.
 preset = {
-    "01_establishing": ((-.95, 1.1, .38), (-.77, .96, .42), (0, 0, 0), 52),
-    "02_low_side_track": ((-.40, .72, .18), (.44, .73, .20), (0, 0, .03), 58),
-    "03_bow_approach": ((-1.45, .08, .28), (-.72, .15, .28), (0, 0, .03), 49),
-    "04_aerial_deck": ((.15, .22, 1.45), (.26, -.06, 1.22), (0, 0, .02), 43),
-    "05_stern_departure": ((1.12, -.72, .40), (1.53, -.93, .50), (0, 0, 0), 53),
+    # Deliberately short movements: every shot uses a steady, locked camera angle.
+    "01_establishing": ((-.95, 1.1, .38), (-.88, 1.04, .38), (0, 0, 0), 52),
+    "02_low_side_track": ((-.30, .72, .18), (-.12, .72, .18), (0, 0, .03), 58),
+    "03_bow_approach": ((-1.45, .08, .28), (-1.32, .08, .28), (0, 0, .03), 49),
+    "04_aerial_deck": ((.15, .22, 1.45), (.18, .18, 1.41), (0, 0, .02), 43),
+    "05_stern_departure": ((1.12, -.72, .40), (1.23, -.76, .41), (0, 0, 0), 53),
 }
 def locate(relative):
     along, across, above = relative
@@ -110,15 +111,20 @@ for idx, spec in enumerate(shots):
     camera.data.lens = lens_mm
     camera.data.clip_end = max(1000, scale * 50)
     target = locate(target_offset)
+    # Lock orientation at the midpoint. This avoids Euler wrap-around,
+    # abrupt spinning, and constant re-aiming during every dolly movement.
+    midpoint = (locate(start_offset) + locate(end_offset)) * .5
+    camera.rotation_mode = "QUATERNION"
+    camera.rotation_quaternion = (target - midpoint).to_track_quat("-Z", "Y")
     for f, relative in ((frame, start_offset), (last, end_offset)):
         camera.location = locate(relative)
-        point_at(camera, target)
         camera.keyframe_insert(data_path="location", frame=f)
-        camera.keyframe_insert(data_path="rotation_euler", frame=f)
     if camera.animation_data and camera.animation_data.action:
         for curve in camera.animation_data.action.fcurves:
             for point in curve.keyframe_points:
                 point.interpolation = "BEZIER"
+                point.handle_left_type = "AUTO_CLAMPED"
+                point.handle_right_type = "AUTO_CLAMPED"
     marker = scene.timeline_markers.new(name, frame=frame)
     marker.camera = camera
     if idx == 0:
