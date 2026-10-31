@@ -11,7 +11,7 @@ jobs:
       - name: Install Blender
         run: |
           sudo apt-get update
-          sudo apt-get install -y blender
+          sudo apt-get install -y blender python3-numpy
       - name: Create Blender scene
         run: |
           cat > /tmp/carrier_test.py <<'PY'
@@ -55,8 +55,10 @@ jobs:
           bpy.ops.wm.save_as_mainfile(filepath=os.path.abspath('output/carrier_test.blend'))
           PY
           blender -b --python /tmp/carrier_test.py
+          test -s output/carrier_test.blend
       - name: Upload Blender project
         uses: actions/upload-artifact@v4
         with:
           name: carrier-glb-test
           path: output/carrier_test.blend
+          if-no-files-found: error
