@@ -1,0 +1,38 @@
+name: Carrier Five-Shot Batch
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create-five-shots:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout scene assets and scripts
+        uses: actions/checkout@v4
+      - name: Install Blender and glTF dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y blender python3-numpy
+      - name: Build five editable camera shots
+        run: |
+          blender --background --factory-startup --python-exit-code 1 --python scripts/build_carrier_five_shots.py
+          test -s output/carrier_five_shots.blend
+          test -s output/shot_report.json
+          python3 - <<'PY'
+          import json
+          with open('output/shot_report.json') as f:
+              r=json.load(f)
+          assert len(r['shots']) == 5, r
+          assert r['total_frames'] == 360, r
+          print('VALIDATED: 5 shots in', r['seconds'], 'seconds')
+          PY
+      - name: Upload five-shot Blender project
+        uses: actions/upload-artifact@v4
+        with:
+          name: carrier-five-shots
+          path: |
+            output/carrier_five_shots.blend
+            output/shot_report.json
+          if-no-files-found: error
+          retention-days: 14
