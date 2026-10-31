@@ -1,0 +1,29 @@
+{
+  "shots": [
+    {
+      "name": "01_establishing",
+      "frames": 72,
+      "description": "Wide carrier establishing angle"
+    },
+    {
+      "name": "02_low_side_track",
+      "frames": 72,
+      "description": "Low side-tracking shot"
+    },
+    {
+      "name": "03_bow_approach",
+      "frames": 72,
+      "description": "Approach toward bow"
+    },
+    {
+      "name": "04_aerial_deck",
+      "frames": 72,
+      "description": "High aerial deck overview"
+    },
+    {
+      "name": "05_stern_departure",
+      "frames": 72,
+      "description": "Pull away from stern"
+    }
+  ]
+}
