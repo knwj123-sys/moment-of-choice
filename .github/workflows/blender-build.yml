@@ -1,0 +1,123 @@
+name: Build Blender 3D Scene
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Blender
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y blender
+
+      - name: Create animated 3D scene
+        run: |
+          cat > /tmp/build_scene.py <<'PY'
+          import bpy
+          import math
+
+          bpy.ops.object.select_all(action='SELECT')
+          bpy.ops.object.delete(use_global=False)
+
+          # Materials
+          def material(name, color):
+              mat = bpy.data.materials.new(name)
+              mat.diffuse_color = (*color, 1)
+              return mat
+
+          ocean_mat = material("Ocean Teal", (0.04, 0.22, 0.27))
+          hull_mat = material("Carrier Hull", (0.22, 0.29, 0.34))
+          deck_mat = material("Flight Deck", (0.42, 0.40, 0.35))
+          plane_mat = material("Aircraft", (0.72, 0.73, 0.67))
+
+          def box(name, location, scale, mat):
+              bpy.ops.mesh.primitive_cube_add(size=1, location=location)
+              obj = bpy.context.object
+              obj.name = name
+              obj.dimensions = scale
+              obj.data.materials.append(mat)
+              return obj
+
+          # Ocean
+          box("Ocean", (0, 0, -0.4), (60, 60, 0.3), ocean_mat)
+
+          # Carrier
+          carrier = box("Carrier Hull", (0, 0, 0.3), (3, 12, 0.9), hull_mat)
+          box("Flight Deck", (0, 0, 0.85), (3.6, 12.5, 0.2), deck_mat)
+          box("Island", (1.3, 1, 1.5), (0.8, 1.8, 1.2), hull_mat)
+
+          # Aircraft
+          planes = []
+          for i in range(6):
+              x = -0.7 if i % 2 == 0 else 0.5
+              y = -3 + (i // 2) * 2.2
+              plane = box(
+                  f"Aircraft_{i+1}",
+                  (x, y, 1.15),
+                  (0.35, 0.9, 0.2),
+                  plane_mat
+              )
+              planes.append(plane)
+
+          # Aircraft animation
+          plane = planes[0]
+          plane.location = (-0.7, -3, 1.15)
+          plane.keyframe_insert(data_path="location", frame=1)
+
+          plane.location = (-0.7, -12, 5)
+          plane.keyframe_insert(data_path="location", frame=120)
+
+          # Camera
+          bpy.ops.object.camera_add(location=(15, -20, 13))
+          camera = bpy.context.object
+          camera.name = "Cinematic Camera"
+
+          from mathutils import Vector
+          target = Vector((0, 0, 0))
+          camera.rotation_euler = (
+              target - camera.location
+          ).to_track_quat('-Z', 'Y').to_euler()
+
+          bpy.context.scene.camera = camera
+
+          camera.location = (15, -20, 13)
+          camera.keyframe_insert(data_path="location", frame=1)
+
+          camera.location = (11, -15, 10)
+          camera.keyframe_insert(data_path="location", frame=120)
+
+          # Timeline
+          scene = bpy.context.scene
+          scene.frame_start = 1
+          scene.frame_end = 120
+          scene.render.fps = 24
+          scene.frame_set(1)
+
+          # Save project
+          bpy.ops.wm.save_as_mainfile(
+              filepath="/tmp/moment_of_choice.blend"
+          )
+
+          print("SUCCESS: Animated Blender scene created")
+          PY
+
+          blender -b -t 2 --python /tmp/build_scene.py
+
+      - name: Verify Blender project
+        run: |
+          test -s /tmp/moment_of_choice.blend
+          ls -lh /tmp/moment_of_choice.blend
+
+      - name: Upload Blender project
+        uses: actions/upload-artifact@v4
+        with:
+          name: moment-of-choice-blender
+          path: /tmp/moment_of_choice.blend
+          retention-days: 7
