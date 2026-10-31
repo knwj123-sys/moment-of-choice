@@ -1,0 +1,62 @@
+name: Carrier GLB Scene Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Blender
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y blender
+      - name: Create Blender scene
+        run: |
+          cat > /tmp/carrier_test.py <<'PY'
+          import bpy
+          import os
+          from mathutils import Vector
+
+          bpy.ops.object.select_all(action='SELECT')
+          bpy.ops.object.delete(use_global=False)
+
+          model = os.path.abspath('generic-unarmed-aircraft-carrier.glb')
+          bpy.ops.import_scene.gltf(filepath=model)
+
+          meshes = [obj for obj in bpy.context.scene.objects if obj.type == 'MESH']
+          if not meshes:
+              raise RuntimeError('No mesh found in GLB')
+
+          bpy.context.view_layer.update()
+          points = [obj.matrix_world @ Vector(corner) for obj in meshes for corner in obj.bound_box]
+          center = sum(points, Vector()) / len(points)
+          size = max(max(p[i] for p in points) - min(p[i] for p in points) for i in range(3))
+
+          bpy.ops.object.camera_add(location=center + Vector((size, -size * 1.5, size * 0.8)))
+          camera = bpy.context.object
+          scene = bpy.context.scene
+          scene.camera = camera
+          camera.data.type = 'ORTHO'
+          camera.data.ortho_scale = size * 2.4
+
+          for frame, offset in [(1, Vector((0, 0, 0))), (120, Vector((-size * .35, size * .2, size * .1)))]:
+              camera.location = center + Vector((size, -size * 1.5, size * .8)) + offset
+              camera.rotation_euler = (center - camera.location).to_track_quat('-Z', 'Y').to_euler()
+              camera.keyframe_insert(data_path='location', frame=frame)
+              camera.keyframe_insert(data_path='rotation_euler', frame=frame)
+
+          scene.frame_start = 1
+          scene.frame_end = 120
+          scene.render.fps = 24
+          scene.frame_set(1)
+          os.makedirs('output', exist_ok=True)
+          bpy.ops.wm.save_as_mainfile(filepath=os.path.abspath('output/carrier_test.blend'))
+          PY
+          blender -b --python /tmp/carrier_test.py
+      - name: Upload Blender project
+        uses: actions/upload-artifact@v4
+        with:
+          name: carrier-glb-test
+          path: output/carrier_test.blend
